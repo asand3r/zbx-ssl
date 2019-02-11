@@ -1,6 +1,7 @@
 # zbx-ssl
 This bash script can help you to monitor some web services by retrieves SSL certificate properties.
 It was written to using as Zabbix external check, but it's output is simple text, so you can use it as you want.
+![alt](https://pp.userapi.com/7sJKMG95L961S_3DgIpHBKkrK2pUCMdb7aNGNA/w_tzKORcSTQ.jpg)
 
 ## Requirements
  - openssl
