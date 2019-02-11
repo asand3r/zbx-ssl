@@ -15,7 +15,7 @@ The scripts takes three positional parameters:
  - fingerprint: outputs the certificate SHA1 fingerprint
 3: TCP port to connect (default: 443)
 
-Examples:
+## Examples:
 Retrieve days before certificate expires:
 ```bash
 [root@server ~]# zbx-ssl www.google.com
