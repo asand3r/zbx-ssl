@@ -76,6 +76,12 @@ then
     "sec")
       echo $(($EXPIRE - $(date +%s)))
       ;;
+    "utc")
+      echo $(date -d @"$EXPIRE" --utc)
+      ;;
+    "iso-8601")
+      echo $(date -d @"$EXPIRE" --iso-8601)
+      ;;
     *)
       echo "$EXPIRE"
       ;;
