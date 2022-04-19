@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Script version
-VERSION="0.2"
+VERSION="0.3"
 
 HOST=$1
 PROP=$2
@@ -67,11 +67,13 @@ esac
 # Param to display
 if [[ "$PROP" =~ ^expire ]]
 then
-  EXPIRE_TYPE=$(echo "$PROP" | cut -d":" -f 2)
+  EXPIRE_FMT=$(echo "$PROP" | cut -d":" -f 2)
   EXPIRE=$(get_cert_expire $HOST $PORT)
-  case "$EXPIRE_TYPE" in
-    "days")
-      echo "scale=4; (($EXPIRE - $(date +%s)) / 86400)" | bc -l
+  case "$EXPIRE_FMT" in
+    days*)
+      SCALE=$(echo "$EXPIRE_FMT" | cut -d "/" -f 2)
+      if [[ -z "$SCALE" ]]; then SCALE=4; fi
+      echo "scale=$SCALE; (($EXPIRE - $(date +%s)) / 86400)" | bc -l
       ;;
     "sec")
       echo $(($EXPIRE - $(date +%s)))
