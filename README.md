@@ -5,6 +5,8 @@ It was written to using as Zabbix external check, but it's output is simple text
 
 ## Requirements
  - openssl
+ - bc
+ - coreutils >=5.3.0
 
 ## Usage
 The scripts takes three positional parameters:
