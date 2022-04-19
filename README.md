@@ -10,7 +10,7 @@ It was written to using as Zabbix external check, but it's output is simple text
 The scripts takes three positional parameters:
 1: hostname or IP address to connect
 2: Certificate property to retrieve
- - days (default): prints out days before certificate expired
+ - expire (default): certificate expiration date in unix timestamp by default. Can accept fotmat string after ':' with 'days', 'sec', 'iso-8601' and 'utc' presets. Also, 'days' can contains precession with '/' symbol (e.g. expire:days/4 => 42.1234)
  - serial: outputs the certificate serial number
  - issuer: outputs the issuer name
  - fingerprint: outputs the certificate SHA1 fingerprint
@@ -20,12 +20,20 @@ The scripts takes three positional parameters:
 Retrieve days before certificate expires:
 ```bash
 [root@server ~]# zbx-ssl www.google.com
-42
+1655687983
 ```
-The same as abobe with exact parameter:
+Expire with formatting:
 ```bash
-[root@server ~]# zbx-ssl www.google.com days
-42
+[root@server ~]# zbx-ssl www.google.com expire:days
+61
+[root@server ~]# zbx-ssl www.google.com expire:days/2
+61.82
+[root@server ~]# zbx-ssl www.google.com expire:sec
+5341276
+[root@server ~]# zbx-ssl www.google.com expire:iso-8601
+2022-06-20
+[root@server ~]# zbx-ssl www.google.com expire:utc
+Mon Jun 20 01:19:43 UTC 2022
 ```
 Retrieve certificate issuer:
 ```bash
