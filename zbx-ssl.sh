@@ -71,7 +71,7 @@ then
   EXPIRE=$(get_cert_expire $HOST $PORT)
   case "$EXPIRE_TYPE" in
     "days")
-      echo $((($EXPIRE - $(date +%s)) / 86400))
+      echo "scale=4; (($EXPIRE - $(date +%s)) / 86400)" | bc -l
       ;;
     "sec")
       echo $(($EXPIRE - $(date +%s)))
