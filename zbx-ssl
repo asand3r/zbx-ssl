@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Script version
-VERSION="0.3"
+VERSION="0.4"
 
 HOST=$1
 PROP=$2
@@ -8,11 +8,11 @@ PORT=$3
 
 function get_help() {
 echo "zbx-ssl, version: $VERSION
-(c) Khatsayuk Alexander, 2019
+(c) Khatsayuk Alexander, 2022
 
 The script takes three positional parameters:
 1 - hostname or it's IP address (example: www.google.com, 192.168.1.1)
-2 - certificate property to retrieve in 'expire', 'serial', 'issuer' and 'fingerprint' (default: expire:days)
+2 - certificate property to retrieve in 'json', 'expire', 'serial', 'issuer' and 'fingerprint' (default: expire:days)
 3 - port to connect (default: 443)
 
 Examples:
@@ -25,6 +25,8 @@ zbx-ssl www.google.com expire:days
 # Retrieve certificate issuer:
 zbx-ssl www.google.com issuer
 CN=Google Internet Authority G3,O=Google Trust Services,C=US
+# Retrieve all fields as JSON
+zbx-ssl www.google.com json
 
 Repository on GitHub: https://github.com/asand3r/zbx-ssl"
 exit 0
@@ -56,6 +58,26 @@ function get_cert_prop() {
   else
     echo "-1"
   fi
+}
+
+function get_json() {
+  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>/dev/null | openssl x509 -serial -fingerprint -enddate -issuer -noout -nameopt RFC2253 2>/dev/null)
+  then
+    echo "{\"ssl_error\": \"Unable to load certificate\": \"ssl_data\": {}}"
+    exit 1
+  fi
+
+  SERIAL=$(echo "$CERT_RAW_DATA" | grep -oP 'serial=\K\w+')
+  FINGERPRINT=$(echo "$CERT_RAW_DATA" | grep -oP 'Fingerprint=\K[\w:]*')
+  ENDDATE_RAW=$(echo "$CERT_RAW_DATA" | grep -oP 'notAfter=\K[\w\d: ]*')
+  ENDDATE_UNIXTIME=$(date -d"$ENDDATE_RAW" +%s)
+  ENDDAYS=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)) / 86400)" | bc)
+  ENDSEC=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)))" | bc)
+  ISSUER=$(echo "$CERT_RAW_DATA" | grep -oP 'issuer=\K.*')
+
+  echo "{\"ssl_error\": null, \"ssl_data\": {\"serial\": \"$SERIAL\", \"fingerprint\": \"$FINGERPRINT\", \
+      \"enddate\": \"$ENDDATE_RAW\", \"enddate_unixtime\": \"$ENDDATE_UNIXTIME\", \"enddays\": \"$ENDDAYS\", \
+      \"endsec\": \"$ENDSEC\", \"issuer\": \"$ISSUER\"}}"
 }
 
 case "$1" in
@@ -91,6 +113,9 @@ then
 elif [[ "$PROP" =~ ^(serial|issuer|fingerprint)$ ]]
 then
   echo $(get_cert_prop $HOST $PORT $PROP)
+elif [[ "$PROP" == "json" ]]
+then
+    echo $(get_json $HOST $PORT)
 else
   get_help
 fi
