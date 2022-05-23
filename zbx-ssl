@@ -64,19 +64,26 @@ function get_cert_prop() {
 }
 
 function get_json() {
-  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>/dev/null | openssl x509 -serial -fingerprint -enddate -issuer -noout -nameopt RFC2253 2>/dev/null)
+  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>&1)
   then
-    echo "{\"ssl_error\": \"Unable to load certificate\", \"ssl_data\": {}}"
+    ERR_CODE=$(echo "$CERT_RAW_DATA" | grep -oP "errno=\d+")
+    echo "{\"ssl_error\": \"Unable to load certificate: ${ERR_CODE}\", \"ssl_data\": {}}"
+    return 1
+  fi
+  
+  if ! CERT_DATA=$(echo "$CERT_RAW_DATA" | openssl x509 -serial -fingerprint -enddate -issuer -noout -nameopt RFC2253 2>&1)
+  then
+    echo "{\"ssl_error\": \"Unable to parse x509 certificate data\", \"ssl_data\": {}}"
     return 1
   fi
 
-  SERIAL=$(echo "$CERT_RAW_DATA" | grep -oP 'serial=\K\w+')
-  FINGERPRINT=$(echo "$CERT_RAW_DATA" | grep -oP 'Fingerprint=\K[\w:]*')
-  ENDDATE_RAW=$(echo "$CERT_RAW_DATA" | grep -oP 'notAfter=\K[\w\d: ]*')
+  SERIAL=$(echo "$CERT_DATA" | grep -oP 'serial=\K\w+')
+  FINGERPRINT=$(echo "$CERT_DATA" | grep -oP 'Fingerprint=\K[\w:]*')
+  ENDDATE_RAW=$(echo "$CERT_DATA" | grep -oP 'notAfter=\K[\w\d: ]*')
   ENDDATE_UNIXTIME=$(date -d"$ENDDATE_RAW" +%s)
   ENDDAYS=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)) / 86400)" | bc)
   ENDSEC=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)))" | bc)
-  ISSUER=$(echo "$CERT_RAW_DATA" | grep -oP 'issuer=\K.*')
+  ISSUER=$(echo "$CERT_DATA" | grep -oP 'issuer=\K.*')
 
   echo "{\"ssl_error\": null, \"ssl_data\": {\"serial\": \"$SERIAL\", \"fingerprint\": \"$FINGERPRINT\", \
       \"enddate\": \"$ENDDATE_RAW\", \"enddate_unixtime\": \"$ENDDATE_UNIXTIME\", \"enddays\": \"$ENDDAYS\", \
