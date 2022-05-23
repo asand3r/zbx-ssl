@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Script version
-VERSION="0.4"
+VERSION="0.5"
 
 HOST=$1
 PROP=$2
@@ -29,7 +29,8 @@ CN=Google Internet Authority G3,O=Google Trust Services,C=US
 zbx-ssl www.google.com json
 
 Repository on GitHub: https://github.com/asand3r/zbx-ssl"
-exit 0
+
+return 0
 }
 
 # Set defaults
@@ -44,8 +45,9 @@ function get_cert_expire() {
   then
     CERT_EXPIRE_UT=$(date --date="$CERT_EXPIRE" +%s)
     echo "$CERT_EXPIRE_UT"
+    return 0
   else
-    echo "-1"
+    return 1
   fi
 }
 
@@ -55,29 +57,38 @@ function get_cert_prop() {
   if [[ -n "$CERT_PROP" ]]
   then
     echo "$CERT_PROP"
+    return 0
   else
-    echo "-1"
+    return 1
   fi
 }
 
 function get_json() {
-  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>/dev/null | openssl x509 -serial -fingerprint -enddate -issuer -noout -nameopt RFC2253 2>/dev/null)
+  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>&1)
   then
-    echo "{\"ssl_error\": \"Unable to load certificate\": \"ssl_data\": {}}"
-    exit 1
+    ERR_CODE=$(echo "$CERT_RAW_DATA" | grep -oP "errno=\d+")
+    echo "{\"ssl_error\": \"Unable to load certificate: ${ERR_CODE}\", \"ssl_data\": {}}"
+    return 1
+  fi
+  
+  if ! CERT_DATA=$(echo "$CERT_RAW_DATA" | openssl x509 -serial -fingerprint -enddate -issuer -noout -nameopt RFC2253 2>&1)
+  then
+    echo "{\"ssl_error\": \"Unable to parse x509 certificate data\", \"ssl_data\": {}}"
+    return 1
   fi
 
-  SERIAL=$(echo "$CERT_RAW_DATA" | grep -oP 'serial=\K\w+')
-  FINGERPRINT=$(echo "$CERT_RAW_DATA" | grep -oP 'Fingerprint=\K[\w:]*')
-  ENDDATE_RAW=$(echo "$CERT_RAW_DATA" | grep -oP 'notAfter=\K[\w\d: ]*')
+  SERIAL=$(echo "$CERT_DATA" | grep -oP 'serial=\K\w+')
+  FINGERPRINT=$(echo "$CERT_DATA" | grep -oP 'Fingerprint=\K[\w:]*')
+  ENDDATE_RAW=$(echo "$CERT_DATA" | grep -oP 'notAfter=\K[\w\d: ]*')
   ENDDATE_UNIXTIME=$(date -d"$ENDDATE_RAW" +%s)
   ENDDAYS=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)) / 86400)" | bc)
   ENDSEC=$(echo "(($ENDDATE_UNIXTIME - $(date +%s)))" | bc)
-  ISSUER=$(echo "$CERT_RAW_DATA" | grep -oP 'issuer=\K.*')
+  ISSUER=$(echo "$CERT_DATA" | grep -oP 'issuer=\K.*')
 
   echo "{\"ssl_error\": null, \"ssl_data\": {\"serial\": \"$SERIAL\", \"fingerprint\": \"$FINGERPRINT\", \
       \"enddate\": \"$ENDDATE_RAW\", \"enddate_unixtime\": \"$ENDDATE_UNIXTIME\", \"enddays\": \"$ENDDAYS\", \
       \"endsec\": \"$ENDSEC\", \"issuer\": \"$ISSUER\"}}"
+  return 0
 }
 
 case "$1" in
@@ -90,26 +101,31 @@ esac
 if [[ "$PROP" =~ ^expire ]]
 then
   EXPIRE_FMT=$(echo "$PROP" | cut -d":" -f 2)
-  EXPIRE=$(get_cert_expire $HOST $PORT)
-  case "$EXPIRE_FMT" in
-    days*)
-      SCALE=$(echo "$EXPIRE_FMT" | cut -d "/" -f 2)
-      if [[ -z "$SCALE" ]]; then SCALE=4; fi
-      echo "scale=$SCALE; (($EXPIRE - $(date +%s)) / 86400)" | bc -l
-      ;;
-    "sec")
-      echo $(($EXPIRE - $(date +%s)))
-      ;;
-    "utc")
-      echo $(date -d @"$EXPIRE" --utc)
-      ;;
-    "iso-8601")
-      echo $(date -d @"$EXPIRE" --iso-8601)
-      ;;
-    *)
-      echo "$EXPIRE"
-      ;;
-   esac
+  if EXPIRE=$(get_cert_expire $HOST $PORT)
+  then
+    case "$EXPIRE_FMT" in
+      days*)
+        SCALE=$(echo "$EXPIRE_FMT" | cut -d "/" -f 2)
+        if [[ -z "$SCALE" ]]; then SCALE=4; fi
+        echo "scale=$SCALE; (($EXPIRE - $(date +%s)) / 86400)" | bc -l
+        ;;
+      "sec")
+        echo $(($EXPIRE - $(date +%s)))
+        ;;
+      "utc")
+        echo $(date -d @"$EXPIRE" --utc)
+        ;;
+      "iso-8601")
+        echo $(date -d @"$EXPIRE" --iso-8601)
+        ;;
+      *)
+        echo "$EXPIRE"
+        ;;
+    esac
+  else
+    echo "-1"
+    exit 1
+  fi
 elif [[ "$PROP" =~ ^(serial|issuer|fingerprint)$ ]]
 then
   echo $(get_cert_prop $HOST $PORT $PROP)
