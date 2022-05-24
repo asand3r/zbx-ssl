@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Script version
-VERSION="0.5"
+VERSION="0.6"
 
 HOST=$1
 PROP=$2
 PORT=$3
+E_SCLIENT_ARGS=$4
 
 function get_help() {
 echo "zbx-ssl, version: $VERSION
@@ -14,6 +15,7 @@ The script takes three positional parameters:
 1 - hostname or it's IP address (example: www.google.com, 192.168.1.1)
 2 - certificate property to retrieve in 'json', 'expire', 'serial', 'issuer' and 'fingerprint' (default: expire:days)
 3 - port to connect (default: 443)
+4 - extra args to s_client command (default: none, example: -tls1_2 -servername www.example.com)
 
 Examples:
 # Retrieve certificate expiration date in unixtime:
@@ -34,13 +36,13 @@ return 0
 }
 
 # Set defaults
-if [[ -z "$PROP" ]]; then PROP="expire"; fi
+if [[ -z "$PROP" ]]; then PROP="json"; fi
 if [[ -z "$PORT" ]]; then PORT=443; fi
 if [[ -z "$HOST" ]]; then get_help; fi
 
 # Function gets cert expiration date in YYYY-m-d fromat
 function get_cert_expire() {
-  CERT_EXPIRE=$(true | timeout 5 openssl s_client -connect $1:$2 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f 2)
+  CERT_EXPIRE=$(true | timeout 5 openssl s_client $E_SCLIENT_ARGS -connect $1:$2 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f 2)
   if [[ -n "$CERT_EXPIRE" ]]
   then
     CERT_EXPIRE_UT=$(date --date="$CERT_EXPIRE" +%s)
@@ -53,7 +55,7 @@ function get_cert_expire() {
 
 # Function returns certificate property
 function get_cert_prop() {
-  CERT_PROP=$(true | timeout 5 openssl s_client -connect $1:$2 2>/dev/null | openssl x509 -noout -$3 -nameopt RFC2253 2>/dev/null | sed -r "s/^[0-9a-zA-Z ]*=\s?//")
+  CERT_PROP=$(true | timeout 5 openssl s_client $E_SCLIENT_ARGS -connect $1:$2 2>/dev/null | openssl x509 -noout -$3 -nameopt RFC2253 2>/dev/null | sed -r "s/^[0-9a-zA-Z ]*=\s?//")
   if [[ -n "$CERT_PROP" ]]
   then
     echo "$CERT_PROP"
@@ -64,7 +66,7 @@ function get_cert_prop() {
 }
 
 function get_json() {
-  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client -connect $1:$2 2>&1)
+  if ! CERT_RAW_DATA=$(true | timeout 5 openssl s_client $E_SCLIENT_ARGS -connect $1:$2 2>&1)
   then
     ERR_CODE=$(echo "$CERT_RAW_DATA" | grep -oP "errno=\d+")
     echo "{\"ssl_error\": \"Unable to load certificate: ${ERR_CODE}\", \"ssl_data\": {}}"
